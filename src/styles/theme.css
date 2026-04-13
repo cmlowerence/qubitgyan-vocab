@@ -1,0 +1,47 @@
+/* src/styles/theme.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 20% 98%;
+    --foreground: 220 30% 15%;
+    --card: 0 0% 100%;
+    --primary: 210 60% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 90%;
+    --secondary-foreground: 220 30% 25%;
+    --accent: 180 40% 45%;
+    --muted: 220 20% 90%;
+    --muted-foreground: 220 15% 45%;
+    --border: 220 20% 88%;
+    --input: 220 20% 88%;
+    --ring: 210 60% 40%;
+  }
+  
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/20;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Global Focus Rings for Accessibility */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+  }
+
+  /* Elegant Custom Scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
