@@ -1,5 +1,3 @@
-// src/pages/admin/CategoryManager.tsx
-
 import React, { useEffect, useState } from 'react';
 import { adminLexiconService } from '../../api/services/adminLexicon';
 import { Category, CategoryPayload } from '../../types';
@@ -17,7 +15,7 @@ export const CategoryManager = () => {
       const data = await adminLexiconService.listCategories();
       setCategories(data);
     } catch (error) {
-      console.error("Failed to load categories", error);
+      console.error('Failed to load categories', error);
     } finally {
       setIsLoading(false);
     }
@@ -32,23 +30,23 @@ export const CategoryManager = () => {
     setIsSubmitting(true);
     try {
       const newCat = await adminLexiconService.createCategory(form);
-      setCategories([newCat, ...categories]);
+      setCategories((currentCategories) => [newCat, ...currentCategories]);
       setForm({ name: '', description: '' });
     } catch (error) {
-      alert("Failed to create category");
+      alert('Failed to create category');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("Delete this category?")) {
-      try {
-        await adminLexiconService.deleteCategory(id);
-        setCategories(categories.filter(c => c.id !== id));
-      } catch (error) {
-        alert("Failed to delete");
-      }
+    if (!window.confirm('Delete this category?')) return;
+
+    try {
+      await adminLexiconService.deleteCategory(id);
+      setCategories((currentCategories) => currentCategories.filter((c) => c.id !== id));
+    } catch (error) {
+      alert('Failed to delete');
     }
   };
 
@@ -63,12 +61,14 @@ export const CategoryManager = () => {
         <h2 className="font-semibold mb-4 text-foreground">Add New Category</h2>
         <form onSubmit={handleCreate} className="flex flex-col sm:flex-row gap-4 items-end">
           <div className="flex-1 w-full">
-            <Input label="Name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+            <Input label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           </div>
           <div className="flex-[2] w-full">
-            <Input label="Description" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required />
+            <Input label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required />
           </div>
-          <Button type="submit" isLoading={isSubmitting} className="w-full sm:w-auto">Create</Button>
+          <Button type="submit" isLoading={isSubmitting} className="w-full sm:w-auto">
+            Create
+          </Button>
         </form>
       </div>
 
@@ -83,16 +83,30 @@ export const CategoryManager = () => {
           </thead>
           <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={3} className="p-4 text-center">Loading...</td></tr>
-            ) : categories.map(cat => (
-              <tr key={cat.id} className="hover:bg-muted/50">
-                <td className="p-4 font-medium">{cat.name}</td>
-                <td className="p-4 text-muted-foreground hidden md:table-cell">{cat.description}</td>
-                <td className="p-4 text-right">
-                  <button onClick={() => handleDelete(cat.id)} className="text-red-500 hover:underline text-xs">Delete</button>
+              <tr>
+                <td colSpan={3} className="p-4 text-center">
+                  Loading...
                 </td>
               </tr>
-            ))}
+            ) : categories.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="p-8 text-center text-muted-foreground">
+                  No categories yet. Create the first one above.
+                </td>
+              </tr>
+            ) : (
+              categories.map((cat) => (
+                <tr key={cat.id} className="hover:bg-muted/50">
+                  <td className="p-4 font-medium">{cat.name}</td>
+                  <td className="p-4 text-muted-foreground hidden md:table-cell">{cat.description}</td>
+                  <td className="p-4 text-right">
+                    <button type="button" onClick={() => handleDelete(cat.id)} className="text-red-500 hover:underline text-xs">
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

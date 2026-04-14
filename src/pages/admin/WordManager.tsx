@@ -1,6 +1,4 @@
-// src/pages/admin/WordManager.tsx
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { adminLexiconService } from '../../api/services/adminLexicon';
 import { WordObject, CreateWordPayload } from '../../types';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -18,40 +16,51 @@ export const WordManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 500);
   const { addToast } = useToast();
+  const fetchRequestRef = useRef(0);
 
-  // Modal States
   const [isBaseModalOpen, setIsBaseModalOpen] = useState(false);
   const [editingWord, setEditingWord] = useState<WordObject | null>(null);
-  
+
   const [isSubEntityModalOpen, setIsSubEntityModalOpen] = useState(false);
   const [managingWord, setManagingWord] = useState<WordObject | null>(null);
 
-  const fetchWords = async () => {
-    setIsLoading(true);
-    try {
-      const data = await adminLexiconService.listWords({ search: debouncedSearch, limit: 50 });
-      setWords(data);
-    } catch (error) {
-      addToast('Failed to fetch words from server.', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const requestId = ++fetchRequestRef.current;
+
+    const fetchWords = async () => {
+      setIsLoading(true);
+      try {
+        const data = await adminLexiconService.listWords({ search: debouncedSearch, limit: 50 });
+        if (requestId !== fetchRequestRef.current) return;
+        setWords(data);
+      } catch {
+        if (requestId !== fetchRequestRef.current) return;
+        addToast('Failed to fetch words from server.', 'error');
+      } finally {
+        if (requestId === fetchRequestRef.current) {
+          setIsLoading(false);
+        }
+      }
+    };
+
     fetchWords();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch]);
+
+    return () => {
+      fetchRequestRef.current += 1;
+    };
+  }, [debouncedSearch, addToast]);
 
   const handleDelete = async (id: string, text: string) => {
-    if (window.confirm(`Are you sure you want to delete "${text}"? This cannot be undone.`)) {
-      try {
-        await adminLexiconService.deleteWord(id);
-        setWords(words.filter(w => w.id !== id));
-        addToast(`"${text}" deleted successfully.`, 'success');
-      } catch (error) {
-        addToast('Failed to delete word.', 'error');
-      }
+    if (!window.confirm(`Are you sure you want to delete "${text}"? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await adminLexiconService.deleteWord(id);
+      setWords((currentWords) => currentWords.filter((w) => w.id !== id));
+      addToast(`"${text}" deleted successfully.`, 'success');
+    } catch {
+      addToast('Failed to delete word.', 'error');
     }
   };
 
@@ -59,23 +68,22 @@ export const WordManager = () => {
     try {
       if (editingWord) {
         const updated = await adminLexiconService.updateWord(editingWord.id as string, payload);
-        setWords(words.map(w => w.id === updated.id ? updated : w));
+        setWords((currentWords) => currentWords.map((w) => (w.id === updated.id ? updated : w)));
         addToast('Word updated successfully.', 'success');
       } else {
         const created = await adminLexiconService.createWord(payload);
-        setWords([created, ...words]);
+        setWords((currentWords) => [created, ...currentWords]);
         addToast('New word created successfully.', 'success');
       }
     } catch (error: any) {
-       addToast(error.response?.data?.detail || 'Failed to save word.', 'error');
-       throw error; // Re-throw so modal form loader stops
+      addToast(error.response?.data?.detail || 'Failed to save word.', 'error');
+      throw error;
     }
   };
 
-  // Sync sub-entity updates back to the main table list
   const handleWordContentUpdated = (updatedWord: WordObject) => {
     setManagingWord(updatedWord);
-    setWords(words.map(w => w.id === updatedWord.id ? updatedWord : w));
+    setWords((currentWords) => currentWords.map((w) => (w.id === updatedWord.id ? updatedWord : w)));
   };
 
   const openCreateModal = () => {
@@ -96,11 +104,11 @@ export const WordManager = () => {
       </header>
 
       <div className="flex-none">
-        <Input 
-          label="" 
-          placeholder="Search words by text..." 
-          value={searchTerm} 
-          onChange={(e) => setSearchTerm(e.target.value)} 
+        <Input
+          label=""
+          placeholder="Search words by text..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-md shadow-sm"
         />
       </div>
@@ -128,11 +136,11 @@ export const WordManager = () => {
               ) : words.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="p-8">
-                    <EmptyState 
-                      title="No words found" 
-                      description={searchTerm ? `No results match "${searchTerm}".` : "Your dictionary is empty. Start by adding a new word."}
-                      actionLabel={searchTerm ? "Clear Search" : "Create Word"}
-                      onAction={() => searchTerm ? setSearchTerm('') : openCreateModal()}
+                    <EmptyState
+                      title="No words found"
+                      description={searchTerm ? `No results match "${searchTerm}".` : 'Your dictionary is empty. Start by adding a new word.'}
+                      actionLabel={searchTerm ? 'Clear Search' : 'Create Word'}
+                      onAction={() => (searchTerm ? setSearchTerm('') : openCreateModal())}
                     />
                   </td>
                 </tr>
@@ -153,14 +161,31 @@ export const WordManager = () => {
                       </span>
                     </td>
                     <td className="p-4 text-right space-x-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                      {/* New Content Manage Button */}
-                      <button onClick={() => { setManagingWord(word); setIsSubEntityModalOpen(true); }} className="text-accent hover:bg-accent/10 rounded text-xs font-medium px-3 py-1.5 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setManagingWord(word);
+                          setIsSubEntityModalOpen(true);
+                        }}
+                        className="text-accent hover:bg-accent/10 rounded text-xs font-medium px-3 py-1.5 transition-colors"
+                      >
                         Content
                       </button>
-                      <button onClick={() => { setEditingWord(word); setIsBaseModalOpen(true); }} className="text-primary hover:bg-primary/10 rounded text-xs font-medium px-3 py-1.5 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingWord(word);
+                          setIsBaseModalOpen(true);
+                        }}
+                        className="text-primary hover:bg-primary/10 rounded text-xs font-medium px-3 py-1.5 transition-colors"
+                      >
                         Edit
                       </button>
-                      <button onClick={() => handleDelete(word.id as string, word.text)} className="text-red-500 hover:bg-red-500/10 rounded text-xs font-medium px-3 py-1.5 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(word.id as string, word.text)}
+                        className="text-red-500 hover:bg-red-500/10 rounded text-xs font-medium px-3 py-1.5 transition-colors"
+                      >
                         Delete
                       </button>
                     </td>
@@ -172,11 +197,11 @@ export const WordManager = () => {
         </div>
       </div>
 
-      <WordFormModal 
-        isOpen={isBaseModalOpen} 
-        onClose={() => setIsBaseModalOpen(false)} 
-        onSubmit={handleBaseModalSubmit} 
-        initialData={editingWord} 
+      <WordFormModal
+        isOpen={isBaseModalOpen}
+        onClose={() => setIsBaseModalOpen(false)}
+        onSubmit={handleBaseModalSubmit}
+        initialData={editingWord}
       />
 
       <WordSubEntityManager

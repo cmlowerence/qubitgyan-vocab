@@ -1,6 +1,4 @@
-// src/pages/student/Search.tsx
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { lexiconService } from '../../api/services/lexicon';
 import { useDebounce } from '../../hooks/useDebounce';
 import { SearchResponse, WordObject } from '../../types';
@@ -12,33 +10,52 @@ export const Search = () => {
   const debouncedQuery = useDebounce(query, 500);
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // New: Trending Words State
   const [trending, setTrending] = useState<WordObject[]>([]);
   const [selectedWord, setSelectedWord] = useState<WordObject | null>(null);
+  const requestIdRef = useRef(0);
 
-  // Fetch Trending on mount
   useEffect(() => {
+    let isMounted = true;
+
     lexiconService.getTrending()
-      .then(data => setTrending(data))
-      .catch(err => console.error("Failed to load trending words", err));
+      .then(data => {
+        if (isMounted) {
+          setTrending(data);
+        }
+      })
+      .catch(err => console.error('Failed to load trending words', err));
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
-    if (!debouncedQuery.trim()) {
+    const trimmedQuery = debouncedQuery.trim();
+
+    if (!trimmedQuery) {
+      requestIdRef.current += 1;
       setResults(null);
+      setIsLoading(false);
       return;
     }
 
+    const requestId = ++requestIdRef.current;
+
     const performSearch = async () => {
       setIsLoading(true);
+
       try {
-        const data = await lexiconService.search(debouncedQuery);
+        const data = await lexiconService.search(trimmedQuery);
+        if (requestId !== requestIdRef.current) return;
         setResults(data);
-      } catch (error) {
+      } catch {
+        if (requestId !== requestIdRef.current) return;
         setResults({ error: 'Failed to perform search. Please try again.' });
       } finally {
-        setIsLoading(false);
+        if (requestId === requestIdRef.current) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -54,7 +71,7 @@ export const Search = () => {
         </div>
       );
     }
-    
+
     if (!results) return null;
 
     if ('error' in results) {
@@ -64,9 +81,9 @@ export const Search = () => {
           {results.suggestions && results.suggestions.length > 0 && (
             <div className="flex flex-wrap gap-2 justify-center mt-6 max-w-md mx-auto">
               <span className="text-sm text-muted-foreground w-full mb-2">Did you mean:</span>
-              {results.suggestions.map(s => (
-                <button 
-                  key={s} 
+              {results.suggestions.map((s) => (
+                <button
+                  key={s}
                   onClick={() => setQuery(s)}
                   className="px-4 py-2 bg-secondary text-secondary-foreground font-medium rounded-full text-sm hover:bg-secondary/80 transition-colors shadow-sm"
                 >
@@ -86,7 +103,7 @@ export const Search = () => {
             <span className="text-xs font-bold uppercase tracking-wider text-accent bg-accent/10 px-2.5 py-1 rounded-md">Semantic Matches</span>
             <span className="text-sm text-muted-foreground">for "{results.query}"</span>
           </div>
-          {results.results.map(word => (
+          {results.results.map((word) => (
             <WordCard key={word.id} word={word} onClick={() => setSelectedWord(word)} />
           ))}
         </div>
@@ -103,7 +120,6 @@ export const Search = () => {
   return (
     <>
       <div className="max-w-2xl mx-auto space-y-6 h-[calc(100vh-6rem)] md:h-[calc(100vh-4rem)] flex flex-col">
-        
         <div className="sticky top-0 bg-background pt-4 pb-2 z-10">
           <h1 className="text-2xl font-bold text-foreground mb-4">Lexicon Search</h1>
           <div className="relative shadow-sm group">
@@ -120,8 +136,13 @@ export const Search = () => {
               onChange={(e) => setQuery(e.target.value)}
             />
             {query && (
-              <button onClick={() => setQuery('')} className="absolute inset-y-0 right-0 pr-4 flex items-center text-muted-foreground hover:text-foreground transition-colors">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <button
+                onClick={() => setQuery('')}
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             )}
           </div>
@@ -130,16 +151,17 @@ export const Search = () => {
         <div className="flex-1 overflow-y-auto pb-8">
           {!query && !results && (
             <div className="animate-in fade-in duration-500 space-y-8 mt-4">
-              {/* Added Trending Section */}
               {trending.length > 0 && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                    <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
                     Trending Now
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {trending.map(word => (
-                      <button 
+                    {trending.map((word) => (
+                      <button
                         key={word.id}
                         onClick={() => setSelectedWord(word)}
                         className="px-4 py-2 bg-card border border-border hover:border-primary/50 rounded-full text-sm font-medium transition-colors"
@@ -150,10 +172,12 @@ export const Search = () => {
                   </div>
                 </div>
               )}
-              
+
               <div className="flex flex-col items-center justify-center pt-12 text-center px-4">
                 <div className="w-16 h-16 bg-secondary/50 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                  <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
                 </div>
                 <p className="text-lg font-semibold text-foreground">Explore the Lexicon</p>
                 <p className="text-sm mt-2 max-w-sm mx-auto text-muted-foreground leading-relaxed">
